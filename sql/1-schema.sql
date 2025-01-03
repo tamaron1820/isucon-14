@@ -140,3 +140,4 @@ CREATE TABLE coupons
   PRIMARY KEY (user_id, code)
 )
   COMMENT 'クーポンテーブル';
+ALTER TABLE coupons ADD INDEX idx_used_by (used_by);
