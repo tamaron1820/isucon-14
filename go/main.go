@@ -138,8 +138,6 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-<<<<<<< Updated upstream
-=======
 	chairTotalDistances := []ChairTotalDistance{}
 	query := `
 	SELECT chair_id,
@@ -161,7 +159,6 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
->>>>>>> Stashed changes
 	writeJSON(w, http.StatusOK, postInitializeResponse{Language: "go"})
 }
 
