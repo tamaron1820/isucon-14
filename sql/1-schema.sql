@@ -50,6 +50,16 @@ CREATE TABLE chair_locations
   COMMENT = '椅子の現在位置情報テーブル';
 ALTER TABLE chair_locations ADD INDEX idx_chair_id_created_at_desc (chair_id, created_at DESC);
 
+DROP TABLE IF EXISTS chair_total_distances;
+CREATE TABLE chair_total_distances
+(
+  chair_id  VARCHAR(26) NOT NULL COMMENT '椅子ID',
+  total_distance  INTEGER     NOT NULL COMMENT '移動距離',
+  total_distance_updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6) COMMENT '更新日時',
+  PRIMARY KEY (chair_id)
+)
+  COMMENT = '椅子の移動距離情報テーブル';
+
 DROP TABLE IF EXISTS users;
 CREATE TABLE users
 (

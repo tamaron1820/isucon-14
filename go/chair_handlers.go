@@ -111,12 +111,38 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
+	var oldLocation ChairLocation
+	err = tx.GetContext(ctx, &oldLocation, `SELECT * FROM chair_total_distances WHERE chair_id = ? ORDER BY created_at DESC LIMIT 1`, chair.ID)
+	if err != nil && err != sql.ErrNoRows {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
 	chairLocationID := ulid.Make().String()
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO chair_locations (id, chair_id, latitude, longitude) VALUES (?, ?, ?, ?)`,
 		chairLocationID, chair.ID, req.Latitude, req.Longitude,
 	); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	distanceDiff := 0
+	if err == nil {
+		distanceDiff = abs(req.Latitude-oldLocation.Latitude) + abs(req.Longitude-oldLocation.Longitude)
+	}
+
+	var currentDistance int
+	err = tx.GetContext(ctx, &currentDistance, `SELECT total_distance FROM chair_total_distances WHERE chair_id = ? ORDER BY total_distance_updated_at DESC LIMIT 1`, chair.ID)
+	if err != nil && err != sql.ErrNoRows {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	newTotal := currentDistance + distanceDiff
+
+	_, err = tx.ExecContext(ctx, `INSERT INTO chair_total_distances (chair_id, total_distance) VALUES (?, ?) ON DUPLICATE KEY UPDATE total_distance = ?`, chair.ID, newTotal, newTotal)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
