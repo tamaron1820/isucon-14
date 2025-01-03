@@ -12,7 +12,6 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 )
@@ -67,8 +66,8 @@ func setup() http.Handler {
 	db = _db
 
 	mux := chi.NewRouter()
-	mux.Use(middleware.Logger)
-	mux.Use(middleware.Recoverer)
+	// mux.Use(middleware.Logger)
+	// mux.Use(middleware.Recoverer)
 	mux.HandleFunc("POST /api/initialize", postInitialize)
 
 	// app handlers
@@ -139,6 +138,30 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+<<<<<<< Updated upstream
+=======
+	chairTotalDistances := []ChairTotalDistance{}
+	query := `
+	SELECT chair_id,
+                          SUM(IFNULL(distance, 0)) AS total_distance,
+                          MAX(created_at)          AS total_distance_updated_at
+                   FROM (SELECT chair_id,
+                                created_at,
+                                ABS(latitude - LAG(latitude) OVER (PARTITION BY chair_id ORDER BY created_at)) +
+                                ABS(longitude - LAG(longitude) OVER (PARTITION BY chair_id ORDER BY created_at)) AS distance
+                         FROM chair_locations
+	`
+	if err := db.SelectContext(ctx, &chairTotalDistances, query); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	query = "INSERT INTO chair_total_distances (chair_id, total_distance, total_distance_updated_at) VALUES (:chair_id, :total_distance, :total_distance_updated_at)"
+	if _, err:= db.NamedExecContext(ctx, query, &chairTotalDistances); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+>>>>>>> Stashed changes
 	writeJSON(w, http.StatusOK, postInitializeResponse{Language: "go"})
 }
 
