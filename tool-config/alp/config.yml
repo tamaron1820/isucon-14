@@ -1,8 +1,30 @@
 ---
-sort: sum  # max|min|avg|sum|count|uri|method|max-body|min-body|avg-body|sum-body|p1|p50|p99|stddev
-reverse: true                   # boolean
-query_string: true              # boolean
-output: count,5xx,4xx,3xx,method,uri,min,max,sum,avg,p99                    # string(comma separated)
+sort: sum # max|min|avg|sum|count|uri|method|max-body|min-body|avg-body|sum-body|p1|p50|p99|stddev
+reverse: true # boolean
+query_string: true # boolean
+output: count,5xx,4xx,3xx,method,uri,min,max,sum,avg,p99 # string(comma separated)
 
-# matching_groups:            # array
-# -  
+matching_groups: # array
+  - /api/app/users$
+
+  - /api/app/payment-methods$
+  - /api/app/rides$
+  - /api/app/rides/estimated-fare$
+  - /api/app/rides/[^/]+/evaluation$
+  - /api/app/notification$
+  - /api/app/nearby-chairs
+
+  - /api/owner/owners$
+  - /api/owner/sales
+  - /api/owner/chairs$
+
+  - /api/chair/chairs$
+  - /api/chair/activity$
+  - /api/chair/coordinate$
+  - /api/chair/notification$
+  - /api/chair/rides/[^/]+/status$
+
+  - /api/internal/matching$
+
+  - /assets
+  - /images
