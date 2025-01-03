@@ -139,8 +139,7 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chairTotalDistances := []ChairTotalDistance{}
-	query := `
-	SELECT chair_id,
+	query := `SELECT chair_id,
                           SUM(IFNULL(distance, 0)) AS total_distance,
                           MAX(created_at)          AS total_distance_updated_at
                    FROM (SELECT chair_id,
