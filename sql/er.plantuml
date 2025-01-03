@@ -1,0 +1,108 @@
+@startuml
+
+' settings
+entity "settings" as settings {
+  *name : VARCHAR(30)  -- PK
+  *value : TEXT
+}
+
+' chair_models
+entity "chair_models" as chair_models {
+  *name  : VARCHAR(50) -- PK
+  *speed : INTEGER
+}
+
+' chairs
+entity "chairs" as chairs {
+  *id           : VARCHAR(26)  -- PK
+  *owner_id     : VARCHAR(26)
+  *name         : VARCHAR(30)
+  *model        : TEXT
+  *is_active    : TINYINT(1)
+  *access_token : VARCHAR(255)
+  *created_at   : DATETIME(6)
+  *updated_at   : DATETIME(6)
+}
+
+' chair_locations
+entity "chair_locations" as chair_locations {
+  *id         : VARCHAR(26)  -- PK
+  *chair_id   : VARCHAR(26)
+  *latitude   : INTEGER
+  *longitude  : INTEGER
+  *created_at : DATETIME(6)
+}
+
+' users
+entity "users" as users {
+  *id              : VARCHAR(26)  -- PK
+  *username        : VARCHAR(30)  -- UNIQUE
+  *firstname       : VARCHAR(30)
+  *lastname        : VARCHAR(30)
+  *date_of_birth   : VARCHAR(30)
+  *access_token    : VARCHAR(255) -- UNIQUE
+  *invitation_code : VARCHAR(30)  -- UNIQUE
+  *created_at      : DATETIME(6)
+  *updated_at      : DATETIME(6)
+}
+
+' payment_tokens
+entity "payment_tokens" as payment_tokens {
+  *user_id    : VARCHAR(26)  -- PK
+  *token      : VARCHAR(255)
+  *created_at : DATETIME(6)
+}
+
+' rides
+entity "rides" as rides {
+  *id                    : VARCHAR(26)  -- PK
+  *user_id               : VARCHAR(26)
+   chair_id              : VARCHAR(26)  -- NULL
+  *pickup_latitude       : INTEGER
+  *pickup_longitude      : INTEGER
+  *destination_latitude  : INTEGER
+  *destination_longitude : INTEGER
+   evaluation            : INTEGER      -- NULL
+  *created_at            : DATETIME(6)
+  *updated_at            : DATETIME(6)
+}
+
+' ride_statuses
+entity "ride_statuses" as ride_statuses {
+  *id         : VARCHAR(26)  -- PK
+  *ride_id    : VARCHAR(26)
+  *status     : ENUM('MATCHING','ENROUTE','PICKUP','CARRYING','ARRIVED','COMPLETED')
+  *created_at : DATETIME(6)
+   app_sent_at   : DATETIME(6) -- NULL
+   chair_sent_at : DATETIME(6) -- NULL
+}
+
+' owners
+entity "owners" as owners {
+  *id                   : VARCHAR(26)  -- PK
+  *name                 : VARCHAR(30)  -- UNIQUE
+  *access_token         : VARCHAR(255) -- UNIQUE
+  *chair_register_token : VARCHAR(255) -- UNIQUE
+  *created_at           : DATETIME(6)
+  *updated_at           : DATETIME(6)
+}
+
+' coupons
+entity "coupons" as coupons {
+  *user_id  : VARCHAR(26)  -- PK
+  *code     : VARCHAR(255) -- PK
+  *discount : INTEGER
+  *created_at : DATETIME(6)
+   used_by    : VARCHAR(26) -- NULL
+}
+
+' リレーション (xxx_idカラムのみ)
+chairs       }-- owners         : "chairs.owner_id => owners.id"
+chair_locations }-- chairs      : "chair_locations.chair_id => chairs.id"
+payment_tokens }-- users        : "payment_tokens.user_id => users.id"
+rides        }-- users         : "rides.user_id => users.id"
+rides        }-- chairs        : "rides.chair_id => chairs.id"
+ride_statuses }-- rides        : "ride_statuses.ride_id => rides.id"
+coupons      }-- users         : "coupons.user_id => users.id"
+
+@enduml
