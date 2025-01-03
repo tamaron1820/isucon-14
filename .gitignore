@@ -8,3 +8,13 @@ perl
 rust
 /tool-config/alp/notify-slack.toml
 /tool-config/slow-query/notify-slack.toml
+php
+java
+node
+nodejs
+python
+ruby
+perl
+rust
+/tool-config/alp/notify-slack.toml
+/tool-config/slow-query/notify-slack.toml
