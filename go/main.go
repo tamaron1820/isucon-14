@@ -147,13 +147,13 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
                                 ABS(latitude - LAG(latitude) OVER (PARTITION BY chair_id ORDER BY created_at)) +
                                 ABS(longitude - LAG(longitude) OVER (PARTITION BY chair_id ORDER BY created_at)) AS distance
                FROM chair_locations) tmp
-                   GROUP BY chair_id`
+               GROUP BY chair_id`
 	if err := db.SelectContext(ctx, &chairTotalDistances, query); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 	query = "INSERT INTO chair_total_distances (chair_id, total_distance, total_distance_updated_at) VALUES (:chair_id, :total_distance, :total_distance_updated_at)"
-	if _, err:= db.NamedExecContext(ctx, query, &chairTotalDistances); err != nil {
+	if _, err:= db.NamedExecContext(ctx, query, chairTotalDistances); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
