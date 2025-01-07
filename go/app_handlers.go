@@ -884,32 +884,32 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 
 	nearbyChairs := []appGetNearbyChairsResponseChair{}
 	for _, chair := range chairs {
-		if !chair.IsActive {
-			continue
-		}
+		// if !chair.IsActive {
+		// 	continue
+		// }
 
-		rides := []*Ride{}
-		if err := tx.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id = ? ORDER BY created_at DESC`, chair.ID); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
+		// rides := []*Ride{}
+		// if err := tx.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id = ? ORDER BY created_at DESC`, chair.ID); err != nil {
+		// 	writeError(w, http.StatusInternalServerError, err)
+		// 	return
+		// }
 
-		skip := false
-		for _, ride := range rides {
-			// 過去にライドが存在し、かつ、それが完了していない場合はスキップ
-			status, err := getLatestRideStatus(ctx, tx, ride.ID)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				return
-			}
-			if status != "COMPLETED" {
-				skip = true
-				break
-			}
-		}
-		if skip {
-			continue
-		}
+		// skip := false
+		// for _, ride := range rides {
+		// 	// 過去にライドが存在し、かつ、それが完了していない場合はスキップ
+		// 	status, err := getLatestRideStatus(ctx, tx, ride.ID)
+		// 	if err != nil {
+		// 		writeError(w, http.StatusInternalServerError, err)
+		// 		return
+		// 	}
+		// 	if status != "COMPLETED" {
+		// 		skip = true
+		// 		break
+		// 	}
+		// }
+		// if skip {
+		// 	continue
+		// }
 
 		// 最新の位置情報を取得
 		chairLocation := &ChairLocation{}
