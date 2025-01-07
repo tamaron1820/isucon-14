@@ -870,7 +870,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
-
+s
 	chairs := []Chair{}
 	err = tx.SelectContext(ctx, &chairs, `SELECT * FROM chairs WHERE is_active = TRUE`)
 	if err != nil {
@@ -883,32 +883,36 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		chairIDs = append(chairIDs, chair.ID)
 	}
 
-	query, args, err := sqlx.In(`
-		SELECT r.chair_id, rs.status 
-		FROM rides r
-		JOIN ride_statuses rs ON r.id = rs.ride_id
-		WHERE rs.status = "COMPLETED" 
-		  AND rs.created_at = (
-		    SELECT MAX(created_at) 
-		    FROM ride_statuses 
-		    WHERE ride_id = r.id
-		  )
-		  AND r.chair_id IN (?)
-		ORDER BY r.created_at DESC
-	`, chairIDs)
+	rides := []Ride{}
+	query, args, err := sqlx.In(`SELECT * FROM rides WHERE chair_id IN (?)`, chairIDs)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-
-	query = tx.Rebind(query) 
-	rides := []Ride{}
+	query = tx.Rebind(query)
 	err = tx.SelectContext(ctx, &rides, query, args...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
+	type RideStatus struct {
+		RideID string `db:"ride_id"`
+		Status string `db:"status"`
+	}
+	rideStatusMap := make(map[string]string)
+	err = tx.SelectContext(ctx, &rideStatusMap, `
+		SELECT ride_id, status 
+		FROM ride_statuses 
+		WHERE ride_id IN (SELECT id FROM rides WHERE chair_id IN (?))
+		ORDER BY created_at DESC
+	`, chairIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	// チェア位置情報を取得
 	chairLocations := []ChairLocation{}
 	err = tx.SelectContext(ctx, &chairLocations, `
 		SELECT chair_id, latitude, longitude 
@@ -935,6 +939,19 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	for _, chair := range chairs {
 		location, exists := latestLocations[chair.ID]
 		if !exists {
+			continue
+		}
+		skip := false
+		for _, ride := range rides {
+			if ride.ChairID.String == chair.ID {
+				status := rideStatusMap[ride.ID]
+				if status != "COMPLETED" {
+					skip = true
+					break
+				}
+			}
+		}
+		if skip {
 			continue
 		}
 
