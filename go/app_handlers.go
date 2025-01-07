@@ -884,9 +884,17 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query, args, err := sqlx.In(`
-		SELECT chair_id, status FROM rides 
-		WHERE chair_id IN (?) AND status = "COMPLETED" 
-		ORDER BY created_at DESC
+		SELECT r.chair_id, rs.status 
+		FROM rides r
+		JOIN ride_statuses rs ON r.id = rs.ride_id
+		WHERE rs.status = "COMPLETED" 
+		  AND rs.created_at = (
+		    SELECT MAX(created_at) 
+		    FROM ride_statuses 
+		    WHERE ride_id = r.id
+		  )
+		  AND r.chair_id IN (?)
+		ORDER BY r.created_at DESC
 	`, chairIDs)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
