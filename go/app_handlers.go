@@ -878,9 +878,9 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chairIDs := []string{}
-	for _, chair := range chairs {
-		chairIDs = append(chairIDs, chair.ID)
+	chairIDs := make([]interface{}, len(chairs)) 
+	for i, chair := range chairs {
+		chairIDs[i] = chair.ID
 	}
 
 	rides := []Ride{}
@@ -901,7 +901,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		Status string `db:"status"`
 	}
 	rideStatusMap := make(map[string]string)
-	err = tx.SelectContext(ctx, &rideStatusMap, `
+	statusQuery, statusArgs, err := sqlx.In(`
 		SELECT ride_id, status 
 		FROM ride_statuses 
 		WHERE ride_id IN (SELECT id FROM rides WHERE chair_id IN (?))
@@ -911,15 +911,36 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	statusQuery = tx.Rebind(statusQuery)
+	rows, err := tx.QueryxContext(ctx, statusQuery, statusArgs...)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var rs RideStatus
+		if err := rows.StructScan(&rs); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		rideStatusMap[rs.RideID] = rs.Status
+	}
 
 	// チェア位置情報を取得
 	chairLocations := []ChairLocation{}
-	err = tx.SelectContext(ctx, &chairLocations, `
+	locQuery, locArgs, err := sqlx.In(`
 		SELECT chair_id, latitude, longitude 
 		FROM chair_locations 
 		WHERE chair_id IN (?) 
 		ORDER BY created_at DESC
 	`, chairIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	locQuery = tx.Rebind(locQuery)
+	err = tx.SelectContext(ctx, &chairLocations, locQuery, locArgs...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -944,8 +965,8 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		skip := false
 		for _, ride := range rides {
 			if ride.ChairID.String == chair.ID {
-				status := rideStatusMap[ride.ID]
-				if status != "COMPLETED" {
+				status, exists := rideStatusMap[ride.ID]
+				if !exists || status != "COMPLETED" {
 					skip = true
 					break
 				}
