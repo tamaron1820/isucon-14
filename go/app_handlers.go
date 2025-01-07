@@ -875,7 +875,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	err = tx.SelectContext(
 		ctx,
 		&chairs,
-		`SELECT * FROM chairs WHERE is_active AND NOT EXISTS ( SELECT 1 FROM rides WHERE rides.chair_id = chairs.id AND EXISTS (SELECT 1 FROM ride_statuses WHERE ride_statuses.ride_id = rides.id AND status <> 'COMPLETED'))`,
+		`SELECT * FROM chairs WHERE is_active AND NOT EXISTS ( SELECT * FROM rides WHERE rides.chair_id = chairs.id AND EXISTS (SELECT * FROM ride_statuses WHERE ride_statuses.ride_id = rides.id AND status <> 'COMPLETED'))`,
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
