@@ -871,113 +871,90 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
+	// すべてのアクティブなChairを取得
 	chairs := []Chair{}
-	err = tx.SelectContext(
-		ctx,
-		&chairs,
-		`SELECT * FROM chairs WHERE is_active = 1`,
-	)
+	err = tx.SelectContext(ctx, &chairs, "SELECT * FROM chairs WHERE is_active = 1")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	// 椅子のIDリストを作成
+	// Chairの位置情報を一括で取得
 	chairIDs := make([]string, len(chairs))
-	chairMap := make(map[string]Chair)
 	for i, chair := range chairs {
 		chairIDs[i] = chair.ID
-		chairMap[chair.ID] = chair
 	}
-
-	// 椅子の最新位置情報を一括取得
 	chairLocations := []ChairLocation{}
-	err = tx.SelectContext(ctx, &chairLocations, `
-		SELECT cl.*
-		FROM chair_locations cl
-		JOIN (
-			SELECT chair_id, MAX(created_at) AS max_created_at
-			FROM chair_locations
-			WHERE chair_id IN (?)
-			GROUP BY chair_id
-		) max_cl
-		ON cl.chair_id = max_cl.chair_id AND cl.created_at = max_cl.max_created_at
-	`, chairIDs)
+	query, args, err := sqlx.In("SELECT * FROM chair_locations WHERE chair_id IN (?) AND created_at = (SELECT MAX(created_at) FROM chair_locations WHERE chair_id = chair_locations.chair_id)", chairIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	query = tx.Rebind(query)
+	err = tx.SelectContext(ctx, &chairLocations, query, args...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
+	// Chair IDをキーにした位置情報マップを作成
 	locationMap := make(map[string]ChairLocation)
-	for _, loc := range chairLocations {
-		locationMap[loc.ChairID] = loc
+	for _, location := range chairLocations {
+		locationMap[location.ChairID] = location
 	}
 
-	// 椅子の最新ライドステータスを一括取得
-	rideStatuses := []RideStatus{}
-	err = tx.SelectContext(ctx, &rideStatuses, `
-		SELECT rs.*
-		FROM ride_statuses rs
-		JOIN (
-			SELECT ride_id, MAX(created_at) AS max_created_at
-			FROM ride_statuses
-			WHERE ride_id IN (
-				SELECT id FROM rides WHERE chair_id IN (?)
-			)
-			GROUP BY ride_id
-		) max_rs
-		ON rs.ride_id = max_rs.ride_id AND rs.created_at = max_rs.max_created_at
-	`, chairIDs)
+	// Chairごとの最新Ride Statusを一括で取得
+	rides := []Ride{}
+	query, args, err = sqlx.In("SELECT * FROM rides WHERE chair_id IN (?) ORDER BY created_at DESC", chairIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	query = tx.Rebind(query)
+	err = tx.SelectContext(ctx, &rides, query, args...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	rideStatusMap := make(map[string]string) // ride_id -> status
-	for _, rs := range rideStatuses {
-		rideStatusMap[rs.RideID] = rs.Status
-	}
-
-	// 椅子のフィルタリングと近傍椅子の生成
-	nearbyChairs := []appGetNearbyChairsResponseChair{}
-	for _, chair := range chairs {
-		loc, ok := locationMap[chair.ID]
-		if !ok {
-			continue
-		}
-
-		// 距離チェック
-		if calculateDistance(coordinate.Latitude, coordinate.Longitude, loc.Latitude, loc.Longitude) > distance {
-			continue
-		}
-
-		// ライドのステータス確認
-		rides := []Ride{}
-		err := tx.SelectContext(ctx, &rides, "SELECT * FROM rides WHERE chair_id = ?", chair.ID)
+	// Chair IDごとの最新Ride Statusを判定
+	activeChairIDs := make(map[string]bool)
+	for _, ride := range rides {
+		status, err := getLatestRideStatus(ctx, tx, ride.ID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
-
-		skip := false
-		for _, ride := range rides {
-			if status, exists := rideStatusMap[ride.ID]; exists && status != "COMPLETED" {
-				skip = true
-				break
-			}
+		if status == "COMPLETED" {
+			activeChairIDs[ride.ChairID.String] = true
 		}
-		if skip {
+	}
+
+	// Nearby Chairsを構築
+	nearbyChairs := []appGetNearbyChairsResponseChair{}
+	for _, chair := range chairs {
+		location, exists := locationMap[chair.ID]
+		if !exists {
 			continue
 		}
 
-		// 椅子を結果に追加
+		// 距離計算
+		if calculateDistance(coordinate.Latitude, coordinate.Longitude, location.Latitude, location.Longitude) > distance {
+			continue
+		}
+
+		// 完了済みのライドがある場合にのみ追加
+		if _, isActive := activeChairIDs[chair.ID]; !isActive {
+			continue
+		}
+
 		nearbyChairs = append(nearbyChairs, appGetNearbyChairsResponseChair{
 			ID:    chair.ID,
 			Name:  chair.Name,
 			Model: chair.Model,
 			CurrentCoordinate: Coordinate{
-				Latitude:  loc.Latitude,
-				Longitude: loc.Longitude,
+				Latitude:  location.Latitude,
+				Longitude: location.Longitude,
 			},
 		})
 	}
