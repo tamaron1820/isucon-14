@@ -871,9 +871,12 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	// 椅子一覧を取得
 	chairs := []Chair{}
-	err = tx.SelectContext(ctx, &chairs, "SELECT * FROM chairs WHERE is_active = 1")
+	err = tx.SelectContext(
+		ctx,
+		&chairs,
+		`SELECT * FROM chairs WHERE is_active = 1`,
+	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
