@@ -883,12 +883,19 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		chairIDs = append(chairIDs, chair.ID)
 	}
 
-	rides := []Ride{}
-	err = tx.SelectContext(ctx, &rides, `
+	query, args, err := sqlx.In(`
 		SELECT chair_id, status FROM rides 
 		WHERE chair_id IN (?) AND status = "COMPLETED" 
 		ORDER BY created_at DESC
 	`, chairIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	query = tx.Rebind(query) 
+	rides := []Ride{}
+	err = tx.SelectContext(ctx, &rides, query, args...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
