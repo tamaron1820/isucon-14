@@ -833,7 +833,6 @@ type appGetNearbyChairsResponseChair struct {
 
 func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	latStr := r.URL.Query().Get("latitude")
 	lonStr := r.URL.Query().Get("longitude")
 	distanceStr := r.URL.Query().Get("distance")
@@ -883,7 +882,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 			FROM chair_locations cl
 		) cl
 		WHERE cl.rn = 1
-			AND ABS(cl.latitude - ?) + ABS(cl.longitude - ?) < ?
+			AND ABS(cl.latitude - ?) + ABS(cl.longitude - ?) <= ?
 		)
 		SELECT
 			chairs.*,
