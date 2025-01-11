@@ -109,145 +109,47 @@ func ownerGetSales(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	query := `
-		WITH completed_rides AS (
-			SELECT
-				rides.chair_id,
-				SUM(ride_statuses.fare) AS total_sales
-			FROM rides
-			JOIN ride_statuses ON rides.id = ride_statuses.ride_id
-			WHERE
-				ride_statuses.status = 'COMPLETED'
-				AND ride_statuses.updated_at BETWEEN ? AND ? + INTERVAL 999 MICROSECOND
-			GROUP BY rides.chair_id
-		)
-		SELECT
-			chairs.id,
-			chairs.name,
-			chairs.model,
-			IFNULL(completed_rides.total_sales, 0) AS total_sales
-		FROM chairs
-		LEFT JOIN completed_rides ON chairs.id = completed_rides.chair_id
-		WHERE chairs.owner_id = ?
-	`
-
-	type chairWithSales struct {
-		ID         string `db:"id"`
-		Name       string `db:"name"`
-		Model      string `db:"model"`
-		TotalSales int    `db:"total_sales"`
-	}
-
-	chairs := []chairWithSales{}
-	if err := db.SelectContext(ctx, &chairs, query, since, until, owner.ID); err != nil {
+	chairs := []Chair{}
+	if err := tx.SelectContext(ctx, &chairs, "SELECT * FROM chairs WHERE owner_id = ?", owner.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	// Process results to calculate total sales and group by model
-	totalSales := 0
-	modelSalesMap := make(map[string]int)
-	responseChairs := []chairSales{}
-
-	for _, chair := range chairs {
-		totalSales += chair.TotalSales
-		modelSalesMap[chair.Model] += chair.TotalSales
-		responseChairs = append(responseChairs, chairSales{
-			ID:    chair.ID,
-			Name:  chair.Name,
-			Sales: chair.TotalSales,
-		})
+	res := ownerGetSalesResponse{
+		TotalSales: 0,
 	}
 
-	// Convert model sales map to slice
-	responseModels := []modelSales{}
-	for model, sales := range modelSalesMap {
-		responseModels = append(responseModels, modelSales{
+	modelSalesByModel := map[string]int{}
+	for _, chair := range chairs {
+		rides := []Ride{}
+		if err := tx.SelectContext(ctx, &rides, "SELECT rides.* FROM rides JOIN ride_statuses ON rides.id = ride_statuses.ride_id WHERE chair_id = ? AND status = 'COMPLETED' AND updated_at BETWEEN ? AND ? + INTERVAL 999 MICROSECOND", chair.ID, since, until); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		sales := sumSales(rides)
+		res.TotalSales += sales
+
+		res.Chairs = append(res.Chairs, chairSales{
+			ID:    chair.ID,
+			Name:  chair.Name,
+			Sales: sales,
+		})
+
+		modelSalesByModel[chair.Model] += sales
+	}
+
+	models := []modelSales{}
+	for model, sales := range modelSalesByModel {
+		models = append(models, modelSales{
 			Model: model,
 			Sales: sales,
 		})
 	}
+	res.Models = models
 
-	// Prepare and send response
-	res := ownerGetSalesResponse{
-		TotalSales: totalSales,
-		Chairs:     responseChairs,
-		Models:     responseModels,
-	}
 	writeJSON(w, http.StatusOK, res)
 }
-
-// func ownerGetSales(w http.ResponseWriter, r *http.Request) {
-// 	ctx := r.Context()
-// 	since := time.Unix(0, 0)
-// 	until := time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
-// 	if r.URL.Query().Get("since") != "" {
-// 		parsed, err := strconv.ParseInt(r.URL.Query().Get("since"), 10, 64)
-// 		if err != nil {
-// 			writeError(w, http.StatusBadRequest, err)
-// 			return
-// 		}
-// 		since = time.UnixMilli(parsed)
-// 	}
-// 	if r.URL.Query().Get("until") != "" {
-// 		parsed, err := strconv.ParseInt(r.URL.Query().Get("until"), 10, 64)
-// 		if err != nil {
-// 			writeError(w, http.StatusBadRequest, err)
-// 			return
-// 		}
-// 		until = time.UnixMilli(parsed)
-// 	}
-
-// 	owner := r.Context().Value("owner").(*Owner)
-
-// 	tx, err := db.Beginx()
-// 	if err != nil {
-// 		writeError(w, http.StatusInternalServerError, err)
-// 		return
-// 	}
-// 	defer tx.Rollback()
-
-// 	chairs := []Chair{}
-// 	if err := tx.SelectContext(ctx, &chairs, "SELECT * FROM chairs WHERE owner_id = ?", owner.ID); err != nil {
-// 		writeError(w, http.StatusInternalServerError, err)
-// 		return
-// 	}
-
-// 	res := ownerGetSalesResponse{
-// 		TotalSales: 0,
-// 	}
-
-// 	modelSalesByModel := map[string]int{}
-// 	for _, chair := range chairs {
-// 		rides := []Ride{}
-// 		if err := tx.SelectContext(ctx, &rides, "SELECT rides.* FROM rides JOIN ride_statuses ON rides.id = ride_statuses.ride_id WHERE chair_id = ? AND status = 'COMPLETED' AND updated_at BETWEEN ? AND ? + INTERVAL 999 MICROSECOND", chair.ID, since, until); err != nil {
-// 			writeError(w, http.StatusInternalServerError, err)
-// 			return
-// 		}
-
-// 		sales := sumSales(rides)
-// 		res.TotalSales += sales
-
-// 		res.Chairs = append(res.Chairs, chairSales{
-// 			ID:    chair.ID,
-// 			Name:  chair.Name,
-// 			Sales: sales,
-// 		})
-
-// 		modelSalesByModel[chair.Model] += sales
-// 	}
-
-// 	models := []modelSales{}
-// 	for model, sales := range modelSalesByModel {
-// 		models = append(models, modelSales{
-// 			Model: model,
-// 			Sales: sales,
-// 		})
-// 	}
-// 	res.Models = models
-
-// 	writeJSON(w, http.StatusOK, res)
-// }
 
 func sumSales(rides []Ride) int {
 	sale := 0
