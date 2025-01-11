@@ -833,9 +833,11 @@ type appGetNearbyChairsResponseChair struct {
 
 func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
 	latStr := r.URL.Query().Get("latitude")
 	lonStr := r.URL.Query().Get("longitude")
 	distanceStr := r.URL.Query().Get("distance")
+
 	if latStr == "" || lonStr == "" {
 		writeError(w, http.StatusBadRequest, errors.New("latitude or longitude is empty"))
 		return
@@ -875,31 +877,24 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		&chairs,
 		`
 		WITH near_chairs AS (
-			SELECT cl.*
-			FROM (
-				SELECT cl.*, ROW_NUMBER() OVER (PARTITION BY chair_id ORDER BY created_at DESC) AS rn
-				FROM chair_locations cl
-			) cl
-			WHERE cl.rn = 1 AND ABS(cl.latitude - ?) + ABS(cl.longitude - ?) < ?
-		),
-		chair_latest_status AS (
-			SELECT *
-			FROM (
-				SELECT rides.*, ride_statuses.status AS ride_status,
-				       ROW_NUMBER() OVER (PARTITION BY chair_id ORDER BY ride_statuses.created_at DESC) AS rn
-				FROM rides
-				LEFT JOIN ride_statuses ON rides.id = ride_statuses.ride_id
-			) r
-			WHERE r.rn = 1 AND r.ride_status = 'COMPLETED'
+		SELECT cl.*
+		FROM (
+			SELECT cl.*, row_number() OVER (PARTITION BY chair_id ORDER BY created_at DESC) AS rn
+			FROM chair_locations cl
+		) cl
+		WHERE cl.rn = 1
+			AND ABS(cl.latitude - ?) + ABS(cl.longitude - ?) < ?
 		)
 		SELECT
-			chairs.*, near_chairs.latitude, near_chairs.longitude
+			chairs.*,
+			near_chairs.latitude,
+			near_chairs.longitude
 		FROM
 			chairs
 		INNER JOIN near_chairs ON chairs.id = near_chairs.chair_id
-		LEFT JOIN chair_latest_status ON chairs.id = chair_latest_status.chair_id
+		LEFT JOIN rides ON chairs.id = rides.chair_id AND rides.evaluation IS NULL
 		WHERE
-			(chair_latest_status.ride_status = 'COMPLETED' OR chair_latest_status.ride_status IS NULL)
+			rides.id IS NULL
 			AND chairs.is_active
 		`,
 		lat, lon, distance,
@@ -910,14 +905,14 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	nearbyChairs := make([]appGetNearbyChairsResponseChair, 0, len(chairs))
-	for _, chair := range chairs {
+	for _, c := range chairs {
 		nearbyChairs = append(nearbyChairs, appGetNearbyChairsResponseChair{
-			ID:    chair.ID,
-			Name:  chair.Name,
-			Model: chair.Model,
+			ID:    c.ID,
+			Name:  c.Name,
+			Model: c.Model,
 			CurrentCoordinate: Coordinate{
-				Latitude:  chair.Latitude,
-				Longitude: chair.Longitude,
+				Latitude:  c.Latitude,
+				Longitude: c.Longitude,
 			},
 		})
 	}
