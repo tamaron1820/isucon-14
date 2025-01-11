@@ -35,7 +35,7 @@ CREATE TABLE chairs
   PRIMARY KEY (id)
 )
   COMMENT = '椅子情報テーブル';
-ALTER TABLE chairs ADD INDEX idx_access_token (access_token);
+ALTER TABLE chairs ADD INDEX idx_chairs_access_token (access_token);
 
 DROP TABLE IF EXISTS chair_locations;
 CREATE TABLE chair_locations
@@ -48,7 +48,7 @@ CREATE TABLE chair_locations
   PRIMARY KEY (id)
 )
   COMMENT = '椅子の現在位置情報テーブル';
-ALTER TABLE chair_locations ADD INDEX idx_chair_id_created_at_desc (chair_id, created_at DESC);
+ALTER TABLE chair_locations ADD INDEX idx_chair_locations_chair_id_created_at_desc (chair_id, created_at DESC);
 
 DROP TABLE IF EXISTS chair_total_distances;
 CREATE TABLE chair_total_distances
@@ -78,6 +78,8 @@ CREATE TABLE users
   UNIQUE (invitation_code)
 )
   COMMENT = '利用者情報テーブル';
+ALTER TABLE users ADD INDEX idx_users_access_token (access_token);
+ALTER TABLE users ADD INDEX idx_users_invitation_code (invitation_code);
 
 DROP TABLE IF EXISTS payment_tokens;
 CREATE TABLE payment_tokens
@@ -107,6 +109,8 @@ CREATE TABLE rides
   COMMENT = 'ライド情報テーブル';
 ALTER TABLE rides ADD INDEX idx_chair_id_updated_at_desc (chair_id, updated_at DESC);
 ALTER TABLE rides ADD INDEX idx_user_id_created_at_desc (user_id, created_at DESC);
+ALTER TABLE rides ADD INDEX idx_rides_chair_id_created_at_desc (chair_id, created_at DESC);
+ALTER TABLE rides ADD INDEX idx_rides_chair_id_created_at_asc (chair_id, created_at ASC);
 
 DROP TABLE IF EXISTS ride_statuses;
 CREATE TABLE ride_statuses
@@ -120,8 +124,9 @@ CREATE TABLE ride_statuses
   PRIMARY KEY (id)
 )
   COMMENT = 'ライドステータスの変更履歴テーブル';
-ALTER TABLE ride_statuses ADD INDEX idx_ride_id_created_at_desc (ride_id, created_at DESC);
-ALTER TABLE ride_statuses ADD INDEX idx_ride_id_created_at_asc (ride_id, created_at ASC);
+ALTER TABLE ride_statuses ADD INDEX idx_ride_statuses_ride_id_app_sent_at_created_at (ride_id, app_sent_at, created_at);
+ALTER TABLE ride_statuses ADD INDEX idx_ride_statuses_ride_id_created_at_desc (ride_id, created_at DESC);
+ALTER TABLE ride_statuses ADD INDEX idx_ride_statuses_ride_id_created_at (ride_id, created_at);
 
 DROP TABLE IF EXISTS owners;
 CREATE TABLE owners
@@ -150,4 +155,5 @@ CREATE TABLE coupons
   PRIMARY KEY (user_id, code)
 )
   COMMENT 'クーポンテーブル';
-ALTER TABLE coupons ADD INDEX idx_used_by (used_by);
+ALTER TABLE coupons ADD INDEX idx_coupons_used_by (used_by);
+ALTER TABLE coupons ADD INDEX idx_coupons_code (code);
