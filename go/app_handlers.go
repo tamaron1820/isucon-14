@@ -877,13 +877,13 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		&chairs,
 		`
 		WITH near_chairs AS (
-		SELECT cl.*
-		FROM (
-			SELECT cl.*, row_number() OVER (PARTITION BY chair_id ORDER BY created_at DESC) AS rn
-			FROM chair_locations cl
-		) cl
-		WHERE cl.rn = 1
-			AND ABS(cl.latitude - ?) + ABS(cl.longitude - ?) < ?
+			SELECT cl.*
+			FROM (
+				SELECT cl.*, row_number() OVER (PARTITION BY chair_id ORDER BY created_at DESC) AS rn
+				FROM chair_locations cl
+			) cl
+			WHERE cl.rn = 1
+				AND ABS(cl.latitude - ?) + ABS(cl.longitude - ?) < ?
 		)
 		SELECT
 			chairs.*,
