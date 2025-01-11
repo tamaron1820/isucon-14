@@ -876,27 +876,35 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		ctx,
 		&chairs,
 		`
-		WITH near_chairs AS (
-			SELECT cl.*
-			FROM (
-				SELECT cl.*, row_number() OVER (PARTITION BY chair_id ORDER BY created_at DESC) AS rn
-				FROM chair_locations cl
-			) cl
-			WHERE cl.rn = 1
-				AND ABS(cl.latitude - ?) + ABS(cl.longitude - ?) < ?
-		)
-		SELECT
-			chairs.*,
-			near_chairs.latitude,
-			near_chairs.longitude
-		FROM
-			chairs
-		INNER JOIN near_chairs ON chairs.id = near_chairs.chair_id
-		LEFT JOIN rides ON chairs.id = rides.chair_id AND rides.evaluation IS NULL
-		WHERE
-			rides.id IS NULL
-			AND chairs.is_active
-		`,
+-- 1. 最新の椅子位置情報のうち、指定座標からマンハッタン距離が一定以下なものを near_chairs とする
+WITH near_chairs AS (
+    SELECT cl.*
+    FROM (
+        SELECT
+            cl.*,
+            ROW_NUMBER() OVER (PARTITION BY chair_id ORDER BY created_at DESC) AS rn
+        FROM chair_locations cl
+    ) cl
+    WHERE cl.rn = 1
+      AND ABS(cl.latitude - ?) + ABS(cl.longitude - ?) < ?
+)
+SELECT
+    c.*,
+    near_chairs.latitude,
+    near_chairs.longitude
+FROM
+    chairs c
+    -- 2. 近距離の最新位置情報と結合
+    INNER JOIN near_chairs ON c.id = near_chairs.chair_id
+    -- 3. 「未完了(= status が COMPLETED 以外)のライドが存在する椅子」を LEFT JOIN
+    LEFT JOIN rides r
+        ON c.id = r.chair_id
+        AND r.status != 'COMPLETED'
+-- 4. 「未完了ライドを持たない (r.id が NULL)」かつ「アクティブな椅子だけ」を対象とする
+WHERE
+    r.id IS NULL
+    AND c.is_active
+        `,
 		lat, lon, distance,
 	)
 	if err != nil {
@@ -933,6 +941,109 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		RetrievedAt: retrievedAt.UnixMilli(),
 	})
 }
+
+// func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
+// 	ctx := r.Context()
+
+// 	latStr := r.URL.Query().Get("latitude")
+// 	lonStr := r.URL.Query().Get("longitude")
+// 	distanceStr := r.URL.Query().Get("distance")
+
+// 	if latStr == "" || lonStr == "" {
+// 		writeError(w, http.StatusBadRequest, errors.New("latitude or longitude is empty"))
+// 		return
+// 	}
+
+// 	lat, err := strconv.Atoi(latStr)
+// 	if err != nil {
+// 		writeError(w, http.StatusBadRequest, errors.New("latitude is invalid"))
+// 		return
+// 	}
+
+// 	lon, err := strconv.Atoi(lonStr)
+// 	if err != nil {
+// 		writeError(w, http.StatusBadRequest, errors.New("longitude is invalid"))
+// 		return
+// 	}
+
+// 	distance := 50
+// 	if distanceStr != "" {
+// 		distance, err = strconv.Atoi(distanceStr)
+// 		if err != nil {
+// 			writeError(w, http.StatusBadRequest, errors.New("distance is invalid"))
+// 			return
+// 		}
+// 	}
+
+// 	tx, err := db.Beginx()
+// 	if err != nil {
+// 		writeError(w, http.StatusInternalServerError, err)
+// 		return
+// 	}
+// 	defer tx.Rollback()
+
+// 	chairs := []ChairWithLatLon{}
+// 	err = tx.SelectContext(
+// 		ctx,
+// 		&chairs,
+// 		`
+// 		WITH near_chairs AS (
+// 		SELECT cl.*
+// 		FROM (
+// 			SELECT cl.*, row_number() OVER (PARTITION BY chair_id ORDER BY created_at DESC) AS rn
+// 			FROM chair_locations cl
+// 		) cl
+// 		WHERE cl.rn = 1
+// 			AND ABS(cl.latitude - ?) + ABS(cl.longitude - ?) < ?
+// 		)
+// 		SELECT
+// 			chairs.*,
+// 			near_chairs.latitude,
+// 			near_chairs.longitude
+// 		FROM
+// 			chairs
+// 		INNER JOIN near_chairs ON chairs.id = near_chairs.chair_id
+// 		LEFT JOIN rides ON chairs.id = rides.chair_id AND rides.evaluation IS NULL
+// 		WHERE
+// 			rides.id IS NULL
+// 			AND chairs.is_active
+// 		`,
+// 		lat, lon, distance,
+// 	)
+// 	if err != nil {
+// 		writeError(w, http.StatusInternalServerError, err)
+// 		return
+// 	}
+
+// 	nearbyChairs := make([]appGetNearbyChairsResponseChair, 0, len(chairs))
+// 	for _, c := range chairs {
+// 		nearbyChairs = append(nearbyChairs, appGetNearbyChairsResponseChair{
+// 			ID:    c.ID,
+// 			Name:  c.Name,
+// 			Model: c.Model,
+// 			CurrentCoordinate: Coordinate{
+// 				Latitude:  c.Latitude,
+// 				Longitude: c.Longitude,
+// 			},
+// 		})
+// 	}
+
+// 	retrievedAt := &time.Time{}
+// 	err = tx.GetContext(
+// 		ctx,
+// 		retrievedAt,
+// 		`SELECT CURRENT_TIMESTAMP(6)`,
+// 	)
+// 	if err != nil {
+// 		writeError(w, http.StatusInternalServerError, err)
+// 		return
+// 	}
+
+// 	writeJSON(w, http.StatusOK, &appGetNearbyChairsResponse{
+// 		Chairs:      nearbyChairs,
+// 		RetrievedAt: retrievedAt.UnixMilli(),
+// 	})
+// }
 
 func calculateFare(pickupLatitude, pickupLongitude, destLatitude, destLongitude int) int {
 	meteredFare := farePerDistance * calculateDistance(pickupLatitude, pickupLongitude, destLatitude, destLongitude)
