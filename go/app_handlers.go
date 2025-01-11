@@ -869,6 +869,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
+	// Optimized SQL query to avoid N+1
 	chairs := []ChairWithLatLon{}
 	err = tx.SelectContext(
 		ctx,
@@ -920,20 +921,15 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	retrievedAt := &time.Time{}
-	err = tx.GetContext(
-		ctx,
-		retrievedAt,
-		`SELECT CURRENT_TIMESTAMP(6)`,
-	)
-	if err != nil {
+	if err := tx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
+	retrievedAt := time.Now().UnixMilli()
 	writeJSON(w, http.StatusOK, &appGetNearbyChairsResponse{
 		Chairs:      nearbyChairs,
-		RetrievedAt: retrievedAt.UnixMilli(),
+		RetrievedAt: retrievedAt,
 	})
 }
 
