@@ -881,15 +881,26 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 				FROM chair_locations cl
 			) cl
 			WHERE cl.rn = 1 AND ABS(cl.latitude - ?) + ABS(cl.longitude - ?) < ?
+		),
+		chair_latest_status AS (
+			SELECT *
+			FROM (
+				SELECT rides.*, ride_statuses.status AS ride_status,
+				       ROW_NUMBER() OVER (PARTITION BY chair_id ORDER BY ride_statuses.created_at DESC) AS rn
+				FROM rides
+				LEFT JOIN ride_statuses ON rides.id = ride_statuses.ride_id
+			) r
+			WHERE r.rn = 1 AND r.ride_status = 'COMPLETED'
 		)
 		SELECT
 			chairs.*, near_chairs.latitude, near_chairs.longitude
 		FROM
 			chairs
 		INNER JOIN near_chairs ON chairs.id = near_chairs.chair_id
-		LEFT JOIN rides ON chairs.id = rides.chair_id AND rides.evaluation IS NULL
+		LEFT JOIN chair_latest_status ON chairs.id = chair_latest_status.chair_id
 		WHERE
-			rides.id IS NULL AND chairs.is_active
+			(chair_latest_status.ride_status = 'COMPLETED' OR chair_latest_status.ride_status IS NULL)
+			AND chairs.is_active
 		`,
 		lat, lon, distance,
 	)
