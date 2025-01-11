@@ -36,6 +36,7 @@ CREATE TABLE chairs
 )
   COMMENT = '椅子情報テーブル';
 ALTER TABLE chairs ADD INDEX idx_chairs_access_token (access_token);
+ALTER TABLE chairs ADD INDEX idx_chairs_is_active (is_active);
 
 DROP TABLE IF EXISTS chair_locations;
 CREATE TABLE chair_locations
@@ -49,6 +50,7 @@ CREATE TABLE chair_locations
 )
   COMMENT = '椅子の現在位置情報テーブル';
 ALTER TABLE chair_locations ADD INDEX idx_chair_locations_chair_id_created_at_desc (chair_id, created_at DESC);
+ALTER TABLE chair_locations ADD INDEX idx_chair_id_created_at_lat_lon (chair_id, created_at DESC, latitude, longitude);
 
 DROP TABLE IF EXISTS chair_total_distances;
 CREATE TABLE chair_total_distances
@@ -111,6 +113,7 @@ ALTER TABLE rides ADD INDEX idx_chair_id_updated_at_desc (chair_id, updated_at D
 ALTER TABLE rides ADD INDEX idx_user_id_created_at_desc (user_id, created_at DESC);
 ALTER TABLE rides ADD INDEX idx_rides_chair_id_created_at_desc (chair_id, created_at DESC);
 ALTER TABLE rides ADD INDEX idx_rides_chair_id_created_at_asc (chair_id, created_at ASC);
+ALTER TABLE rides ADD INDEX idx_chair_id_evaluation (chair_id, evaluation);
 
 DROP TABLE IF EXISTS ride_statuses;
 CREATE TABLE ride_statuses
