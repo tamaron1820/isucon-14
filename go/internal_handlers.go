@@ -35,7 +35,7 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 	WHERE (latest_rides.evaluation IS NOT NULL OR latest_rides.id IS NULL) AND chairs.is_active = TRUE 
 	LIMIT 1
 	`
-	if err := db.GetContext(ctx, &matched, query); err != nil {
+	if err := db.GetContext(ctx, matched, query); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			w.WriteHeader(http.StatusNoContent)
 			return
