@@ -58,7 +58,7 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	if len(rides) == 0 {
+	if len(rides) <= 0 {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -66,32 +66,32 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 	// Step 2: 有効な椅子（最新の状態と位置情報を含む）を取得
 	chairs := []ChairWithLatLon{}
 	query := `
-WITH chair_latest_location AS (
-    SELECT *
-    FROM (
-        SELECT chair_locations.*, ROW_NUMBER() OVER (PARTITION BY chair_id ORDER BY created_at DESC) AS rn
-        FROM chair_locations
-    ) c
-    WHERE c.rn = 1
-),
-chair_latest_status AS (
-    SELECT *
-    FROM (
-        SELECT rides.*, ride_statuses.status AS ride_status, ROW_NUMBER() OVER (PARTITION BY chair_id ORDER BY ride_statuses.created_at DESC) AS rn
-        FROM rides
-        INNER JOIN ride_statuses ON rides.id = ride_statuses.ride_id AND ride_statuses.chair_sent_at IS NOT NULL
-    ) r
-    WHERE r.rn = 1
-)
-SELECT
-    chairs.*, chair_latest_location.latitude, chair_latest_location.longitude
-FROM chairs
-LEFT JOIN chair_latest_status ON chairs.id = chair_latest_status.chair_id
-LEFT JOIN chair_latest_location ON chairs.id = chair_latest_location.chair_id
-WHERE
-    (chair_latest_status.ride_status = 'COMPLETED' OR chair_latest_status.ride_status IS NULL)
-    AND chairs.is_active
-`
+	WITH chair_latest_location AS (
+		SELECT *
+		FROM (
+			SELECT chair_locations.*, ROW_NUMBER() OVER (PARTITION BY chair_id ORDER BY created_at DESC) AS rn
+			FROM chair_locations
+		) c
+		WHERE c.rn = 1
+	),
+	chair_latest_status AS (
+		SELECT *
+		FROM (
+			SELECT rides.*, ride_statuses.status AS ride_status, ROW_NUMBER() OVER (PARTITION BY chair_id ORDER BY ride_statuses.created_at DESC) AS rn
+			FROM rides
+			INNER JOIN ride_statuses ON rides.id = ride_statuses.ride_id AND ride_statuses.chair_sent_at IS NOT NULL
+		) r
+		WHERE r.rn = 1
+	)
+	SELECT
+		chairs.*, chair_latest_location.latitude, chair_latest_location.longitude
+	FROM chairs
+	LEFT JOIN chair_latest_status ON chairs.id = chair_latest_status.chair_id
+	LEFT JOIN chair_latest_location ON chairs.id = chair_latest_location.chair_id
+	WHERE
+		(chair_latest_status.ride_status = 'COMPLETED' OR chair_latest_status.ride_status IS NULL)
+		AND chairs.is_active
+	`
 	if err := db.SelectContext(ctx, &chairs, query); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -107,7 +107,7 @@ WHERE
 		var minChairIdx int
 		for idx, chair := range chairs {
 			distance := calculateDistance(chair.Latitude, chair.Longitude, ride.PickupLatitude, ride.PickupLongitude)
-			if distance < minDistance {
+			if distance <= minDistance {
 				minDistance = distance
 				minChair = &chair
 				minChairIdx = idx
