@@ -25,7 +25,7 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 		SELECT * FROM (
 			SELECT *, row_number() OVER (PARTITION BY chair_id ORDER BY created_at DESC) AS row_num
 			FROM rides
-		) WHERE row_num = 1
+		) tmp WHERE tmp.row_num = 1
 	)
 	SELECT
 		chairs.*
